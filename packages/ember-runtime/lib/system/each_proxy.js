@@ -17,7 +17,6 @@ import {
   _removeBeforeObserver,
   removeObserver
 } from 'ember-metal/observer';
-import { watchedEvents } from 'ember-metal/events';
 import { defineProperty } from 'ember-metal/properties';
 import {
   beginPropertyChanges,
@@ -28,7 +27,6 @@ import {
 } from 'ember-metal/property_events';
 
 var EachArray = EmberObject.extend(EmberArray, {
-
   init(attr) {
     this._super(...arguments);
     this._keyName = attr.keyName;
@@ -44,11 +42,8 @@ var EachArray = EmberObject.extend(EmberArray, {
   length: computed(function() {
     var content = this._content;
     return content ? get(content, 'length') : 0;
-  })
-
+  }).volatile()
 });
-
-var IS_OBSERVER = /^.+:(before|change)$/;
 
 function addObserverForContentKey(content, keyName, proxy, idx, loc) {
   var objects = proxy._objects;
@@ -113,9 +108,6 @@ var EachProxy = EmberObject.extend({
 
     // in case someone is already observing some keys make sure they are
     // added
-    watchedEvents(this).forEach((eventName) => {
-      this.didAddListener(eventName);
-    });
   },
 
   /**
@@ -133,8 +125,8 @@ var EachProxy = EmberObject.extend({
       keyName: keyName,
       owner: this
     });
-    defineProperty(this, keyName, null, ret);
-    this.beginObservingContentKey(keyName);
+    defineProperty(this, keyName, null, undefined);
+    this.set(keyName, ret);
     return ret;
   },
 
@@ -157,7 +149,6 @@ var EachProxy = EmberObject.extend({
       propertyWillChange(this, key);
     }
 
-    propertyWillChange(this._content, '@each');
     endPropertyChanges(this);
   },
 
@@ -174,8 +165,6 @@ var EachProxy = EmberObject.extend({
 
         propertyDidChange(this, key);
       }
-
-      propertyDidChange(this._content, '@each');
     }, this);
   },
 
@@ -183,16 +172,12 @@ var EachProxy = EmberObject.extend({
   // LISTEN FOR NEW OBSERVERS AND OTHER EVENT LISTENERS
   // Start monitoring keys based on who is listening...
 
-  didAddListener(eventName) {
-    if (IS_OBSERVER.test(eventName)) {
-      this.beginObservingContentKey(eventName.slice(0, -7));
-    }
+  willWatchProperty(property) {
+    this.beginObservingContentKey(property);
   },
 
-  didRemoveListener(eventName) {
-    if (IS_OBSERVER.test(eventName)) {
-      this.stopObservingContentKey(eventName.slice(0, -7));
-    }
+  didUnwatchProperty(property) {
+    this.stopObservingContentKey(property);
   },
 
   // ..........................................................
